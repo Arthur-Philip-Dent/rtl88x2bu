@@ -218,3 +218,39 @@ If you want to setup
 or
 [bridging](https://www.raspberrypi.org/documentation/configuration/wireless/access-point-bridged.md),
 check out the official Raspberry Pi docs.
+
+The shortest way to self-compile your driver-module: 
+
+
+```
+#! /bin/bash
+# remake_rtl.sh
+# just do the steps to make your rtl88x2bu-driver (redo after each kernel-update) 
+
+sudo apt-get -y update
+sudo apt-get -y upgrade
+sudo apt-get -y install build-essential bc git wget libssl-dev bison flex dkms libncurses5-dev raspberrypi-kernel-headers
+
+mkdir -p ~/rtl8812bu-build/
+cd ~/rtl8812bu-build/
+
+git clone https://github.com/cilynx/rtl88x2bu.git
+
+cd ~/rtl8812bu-build/rtl88x2bu/
+
+sed -i '/CONFIG_PLATFORM_I386_PC = y/c\CONFIG_PLATFORM_I386_PC = n' Makefile
+sed -i '/CONFIG_PLATFORM_ARM_RPI = n/c\CONFIG_PLATFORM_ARM_RPI = y' Makefile
+
+VER=$(sed -n 's/\PACKAGE_VERSION="\(.*\)"/\1/p' dkms.conf)
+
+sudo rsync -rvhP ./ /usr/src/rtl88x2bu-${VER}
+sudo dkms add -m rtl88x2bu -v ${VER}
+sudo dkms build -m rtl88x2bu -v ${VER}
+sudo dkms install -m rtl88x2bu -v ${VER}
+
+sudo modprobe 88x2bu
+
+sudo reboot now
+
+```
+

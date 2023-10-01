@@ -234,7 +234,7 @@ sudo apt-get -y install build-essential bc git wget libssl-dev bison flex dkms l
 mkdir -p ~/rtl8812bu-build/
 cd ~/rtl8812bu-build/
 
-git clone https://github.com/cilynx/rtl88x2bu.git
+git clone https://github.com/Arthur-Philip-Dent/rtl88x2bu.git
 
 cd ~/rtl8812bu-build/rtl88x2bu/
 

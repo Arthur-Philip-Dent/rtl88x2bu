@@ -246,9 +246,15 @@ VER=$(sed -n 's/\PACKAGE_VERSION="\(.*\)"/\1/p' dkms.conf)
 sudo rsync -rvhP ./ /usr/src/rtl88x2bu-${VER}
 sudo dkms add -m rtl88x2bu -v ${VER}
 sudo dkms build -m rtl88x2bu -v ${VER}
+sleep 5
 sudo dkms install -m rtl88x2bu -v ${VER}
+sleep 5
 
-sudo modprobe 88x2bu
+# Make sure to use the 5Gbps in USB3.0 mode using rtw_switch_usb_mode=1 (2 would be 480Mbps USB2.0 Mode)
+sudo modprobe 88x2bu rtw_switch_usb_mode=1
+# Make sure, this is being set on reboot
+echo options 88x2bu rtw_switch_usb_mode=1 > /etc/modprobe.d/88x2bu.conf
+sleep 1
 
 sudo reboot now
 

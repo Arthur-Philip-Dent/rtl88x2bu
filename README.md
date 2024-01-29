@@ -225,39 +225,177 @@ The shortest way to self-compile your driver-module:
 
 ```
 #! /bin/bash
-# remake_rtl.sh
-# just do the steps to make your rtl88x2bu-driver (redo after each kernel-update) 
 
-sudo apt-get -y update
-sudo apt-get -y upgrade
-sudo apt-get -y install build-essential bc git wget libssl-dev bison flex dkms libncurses5-dev raspberrypi-kernel-headers
+# rebuild_88x2bu.sh - rtl88x2bu-make-wrapper by Arthur-Philip-Dent
+# just do the steps to make your rtl88x2bu-driver (redo after each kernel-update) 
+# greetings fly out to @beckerstef and @marcone
+# thanks to @cilynx for the rtl88x2bu-tree to make it so easy just wrapped this script around
+# it's not perfect, still learning! Suggestions welcomed!
+# 
+# HECK, yeah, I have to get more into this github
+# Best Regards
+# 
+# The Hithhiker 
+
+# find out if the bookworms are in...
+if [ -e /boot/firmware ]
+  then 
+    # set firmware folder
+    BOOT_DIR=/boot/firmware
+  else
+    BOOT_DIR=/boot
+fi 
+
+# if we are in a TeslaUSB device.... make sure the system is rw
+if sudo test -e /root/bin/remountfs_rw 
+  then 
+    echo -e "Ahhh, a TeslaUSB device! \n... unlocking ro partitions.\n"
+    sudo /root/bin/remountfs_rw 2>&1
+    echo
+fi
+
+# set if we do update/upgrade in same time
+# but only, if this is the first call
+if [ -f "$(dirname $0)/.rebooted_rebuild_88x2bu" ] 
+  then 
+    # we have been here already, delete marker
+    rm "$(dirname $0)/.rebooted_rebuild_88x2bu" 2>&1
+    UPD=0  
+  else
+    echo -e -n "It is recommended to do a full upgrade of OS first. Proceed with update (y/n - ENTER)? "
+    read choice
+    case "$choice" in
+      n|N ) UPD=0;;
+      * )  UPD=1;;
+    esac
+    choice=
+    
+    
+    if [ ${UPD} -eq 1 ]
+      then
+        # better upgrade all to make sure we are all set
+        echo -e "Taking care of system-updates/upgrades...\n"
+        sudo apt-get -y update
+        sudo apt-get -y upgrade
+        echo -e "Please come back here again after rebooting!\n\nRebooting in 5 sec...\n"  
+        touch "$(dirname $0)/.rebooted_rebuild_88x2bu" 2>&1
+        sleep 10
+        sudo reboot now
+        sleep 10
+        exit 0 # get out o'here... 
+      else
+        echo -e "We have been here for update earlier!\nNothing else to do.\nWe proceed...\n"
+        sleep 10
+    fi
+fi 
+
+# setting up development env and make sure to have all we need to compile modules
+echo -e "Setting up development env ...\nchecking all tools...\n"
+sudo apt-get -y install build-essential bc git wget libssl-dev bison flex dkms libncurses5-dev raspberrypi-kernel-headers ipferf3
+
+# throw away old stuff and get the code for the rtl8812bu kernel module
+if [ -d ~/rtl8812bu-build ]
+  then
+    rm -fr ~/rtl8812bu-build
+fi
 
 mkdir -p ~/rtl8812bu-build/
 cd ~/rtl8812bu-build/
 
+echo -e "Fetching sources...\n"
 git clone https://github.com/Arthur-Philip-Dent/rtl88x2bu.git
 
 cd ~/rtl8812bu-build/rtl88x2bu/
 
+# modify the makefile for raspi
+echo -e "Modify make-file...\n"
 sed -i '/CONFIG_PLATFORM_I386_PC = y/c\CONFIG_PLATFORM_I386_PC = n' Makefile
 sed -i '/CONFIG_PLATFORM_ARM_RPI = n/c\CONFIG_PLATFORM_ARM_RPI = y' Makefile
 
+# Set the module and version
+echo -e "Checking module-version...\n"
+NAME=$(sed -n 's/\PACKAGE_NAME="\(.*\)"/\1/p' dkms.conf)
 VER=$(sed -n 's/\PACKAGE_VERSION="\(.*\)"/\1/p' dkms.conf)
+KERNEL_VERSION=$(uname -r)
 
-sudo rsync -rvhP ./ /usr/src/rtl88x2bu-${VER}
-sudo dkms add -m rtl88x2bu -v ${VER}
-sudo dkms build -m rtl88x2bu -v ${VER}
-sleep 5
-sudo dkms install -m rtl88x2bu -v ${VER}
-sleep 5
 
-# Make sure to use the 5Gbps in USB3.0 mode using rtw_switch_usb_mode=1 (2 would be 480Mbps USB2.0 Mode)
-sudo modprobe 88x2bu rtw_switch_usb_mode=1
-# Make sure, this is being set on reboot
-sudo echo options 88x2bu rtw_switch_usb_mode=1 > /etc/modprobe.d/88x2bu.conf
-sleep 1
+# Check if the module is already in the DKMS tree for the current kernel version
+if ! dkms status -m $NAME -v $VER -k $KERNEL_VERSION | grep -q installed
+  then
+    echo -e "We need a new build...\n"
+    # copy the sources to the DKMS (dynamic kernel module support) to get ready for build
+    sudo rsync -rvhP ./ /usr/src/${NAME}-${VER} > /dev/null
+    sleep 10
 
-sudo reboot now
+    # add the rtl88x2bu code to the dkms build-tree
+    sudo dkms add -m ${NAME} -v ${VER}
+    sleep 10
+
+    # build the rtl88x2bu module (we added only this so its only this module being build)
+    sudo dkms build -m ${NAME} -v ${VER}
+    sleep 10
+
+    # install the newly built kernel module into dkms
+    sudo dkms install -m ${NAME} -v ${VER}
+    sleep 10
+
+    # load the installed kernel modul rtl88x2bu into the kernel an cross fingers
+    # to force USB2.0 480MBit
+    #sudo modprobe 88x2bu rtw_switch_usb_mode=2
+    # to force USB3.0 5000MBit
+    sudo modprobe 88x2bu rtw_switch_usb_mode=1
+    sudo sh -c 'echo options 88x2bu rtw_switch_usb_mode=1 > /etc/modprobe.d/99-88x2bu.conf'
+    sleep 10
+
+    # test if command was successful and module rtl88x2bu is loaded
+    echo -e "Testing, if built was succesful...\nPls ignore the \"PM usage count underflow\" error!\n"
+    dmesg | grep ${NAME}
+    sleep 10
+
+     
+  else
+    # If already installed, show a message
+      echo -e "Module ${NAME}-${VER} is already installed for kernel ${KERNEL_VERSION}.\nNo new built needed!\n"
+fi
+
+# Ask for user for disableing internal WiFi
+echo -e -n "Running with two WLAN-adapters can cause problems. Better deactivate the internal wlan0 (y/n - ENTER) "
+read choice
+case "${choice}" in
+  n|N ) TERMINATE_WLAN0=0;;
+  * ) TERMINATE_WLAN0=1;;
+esac
+choice=
+
+# check ${BOOT_DIR}/config.txt for entry "dtoverlay=disable-wifi"
+if [ ${TERMINATE_WLAN0} -eq 1 ] && sudo grep -q "^.*dtoverlay=disable-wifi" "${BOOT_DIR}/config.txt" 
+  then
+    # Make entry in ${BOOT_DIR}/config.txt only, when not exists 
+    echo -e "Entry in config.txt for disabling internal WiFi exists... \nun-commenting it, if necessary, so it does take effect...\ninternal wlan0 deactivated now\n"
+    sudo sed -i -e 's/.*dtoverlay=disable-wifi/dtoverlay=disable-wifi/' "${BOOT_DIR}/config.txt"
+  else
+    # If entry exists and user doesn't want to terminate... heck, if entry is commented out...
+    if [ ${TERMINATE_WLAN0} -eq 0 ] && sudo grep -q "^.*dtoverlay=disable-wifi" "${BOOT_DIR}/config.txt"
+      then 
+        echo -e "Entry in config.txt for disabling internal WiFi exists... \ncommenting if necessary, so it doesn't take effect...\ninternal wlan0 active now\n"
+        sudo sed -i -e 's/.*dtoverlay=disable-wifi/# dtoverlay=disable-wifi/' "${BOOT_DIR}/config.txt"
+      else
+        # remove entry in config.txt, when exist's:
+        echo -e "Removing lines from ${BOOT_DIR}/config.txt: \n# disable WiFi\dtoverlay=disable-wifi" 
+        sudo sed -i '/^# disable WiFi/,/dtoverlay=disable-wifi.*$/d' "${BOOT_DIR}/config.txt"
+    fi
+fi    
+
+# Ask for user confirmation before rebooting
+echo -e -n "After (re-)compiling kernel modules an/or changing the ${BOOT_DIR}/config.txt a reboot is good!\nDo you want to reboot now? (y/n - ENTER) "
+read choice
+case "${choice}" in
+  n|N ) echo -e "You chose not to reboot. \nPlease reboot your system later to apply changes, if there are any.\n";;
+  * ) sudo reboot now;;
+esac
+choice=
+
+exit 0 # get out o'here...
 
 ```
 

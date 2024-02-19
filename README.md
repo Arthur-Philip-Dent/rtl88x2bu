@@ -291,7 +291,7 @@ fi
 
 # setting up development env and make sure to have all we need to compile modules
 echo -e "Setting up development env ...\nchecking all tools...\n"
-sudo apt-get -y install build-essential bc git wget libssl-dev bison flex dkms libncurses5-dev raspberrypi-kernel-headers ipferf3
+sudo apt-get -y install build-essential bc git wget libssl-dev bison flex dkms libncurses-dev raspberrypi-kernel-headers iperf
 
 # throw away old stuff and get the code for the rtl8812bu kernel module
 if [ -d ~/rtl8812bu-build ]

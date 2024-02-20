@@ -270,6 +270,7 @@ if [ -f "$(dirname $0)/.rebooted_rebuild_88x2bu" ]
       * )  UPD=1;;
     esac
     choice=
+    echo 
     
     
     if [ ${UPD} -eq 1 ]
@@ -280,13 +281,13 @@ if [ -f "$(dirname $0)/.rebooted_rebuild_88x2bu" ]
         sudo apt-get -y upgrade
         echo -e "Please come back here again after rebooting!\n\nRebooting in 5 sec...\n"  
         touch "$(dirname $0)/.rebooted_rebuild_88x2bu" 2>&1
-        sleep 10
+        sleep 5
         sudo reboot now
-        sleep 10
+        sleep 5
         exit 0 # get out o'here... 
       else
         echo -e "We have been here for update earlier!\nNothing else to do.\nWe proceed...\n"
-        sleep 10
+        sleep 5
     fi
 fi 
 
@@ -367,34 +368,39 @@ case "${choice}" in
   * ) TERMINATE_WLAN0=1;;
 esac
 choice=
+echo 
+
 
 # check ${BOOT_DIR}/config.txt for entry "dtoverlay=disable-wifi"
 if [ ${TERMINATE_WLAN0} -eq 1 ] && sudo grep -q "^.*dtoverlay=disable-wifi" "${BOOT_DIR}/config.txt" 
+
+  # Make entry in ${BOOT_DIR}/config.txt only, when not exists 
   then
-    # Make entry in ${BOOT_DIR}/config.txt only, when not exists 
     echo -e "Entry in config.txt for disabling internal WiFi exists... \nun-commenting it, if necessary, so it does take effect...\ninternal wlan0 deactivated now\n"
     sudo sed -i -e 's/.*dtoverlay=disable-wifi/dtoverlay=disable-wifi/' "${BOOT_DIR}/config.txt"
-  else
-    # If entry exists and user doesn't want to terminate... heck, if entry is commented out...
-    if [ ${TERMINATE_WLAN0} -eq 0 ] && sudo grep -q "^.*dtoverlay=disable-wifi" "${BOOT_DIR}/config.txt"
-      then 
-        echo -e "Entry in config.txt for disabling internal WiFi exists... \ncommenting if necessary, so it doesn't take effect...\ninternal wlan0 active now\n"
-        sudo sed -i -e 's/.*dtoverlay=disable-wifi/# dtoverlay=disable-wifi/' "${BOOT_DIR}/config.txt"
-      else
-        # remove entry in config.txt, when exist's:
-        echo -e "Removing lines from ${BOOT_DIR}/config.txt: \n# disable WiFi\dtoverlay=disable-wifi" 
-        sudo sed -i '/^# disable WiFi/,/dtoverlay=disable-wifi.*$/d' "${BOOT_DIR}/config.txt"
-    fi
+
+  # no entry, but obviously we didn't find one to activate
+  elif [ ${TERMINATE_WLAN0} -eq 1 ] 
+    then
+      echo -e "Adding lines to ${BOOT_DIR}/config.txt: \n   # disable WiFi\n   dtoverlay=disable-wifi\n" 
+      echo -e "# disable WiFi\ndtoverlay=disable-wifi" >> ${BOOT_DIR}/config.txt
+
+  # If entry exists and user doesn't want to terminate... heck, if entry is not commented out...
+  elif [ ${TERMINATE_WLAN0} -eq 0 ] && sudo grep -q "^.*dtoverlay=disable-wifi" "${BOOT_DIR}/config.txt"
+    then 
+      echo -e "Entry in config.txt for disabling internal WiFi exists... \ncommenting if necessary, so it doesn't take effect...\ninternal wlan0 active now\n"
+      sudo sed -i -e 's/.*dtoverlay=disable-wifi/# dtoverlay=disable-wifi/' "${BOOT_DIR}/config.txt"
 fi    
 
 # Ask for user confirmation before rebooting
-echo -e -n "After (re-)compiling kernel modules an/or changing the ${BOOT_DIR}/config.txt a reboot is good!\nDo you want to reboot now? (y/n - ENTER) "
+echo -e -n "After (re-)compiling kernel modules an/or changing the ${BOOT_DIR}/config.txt a reboot is a good idea!\nDo you want to reboot now? (y/n - ENTER) "
 read choice
 case "${choice}" in
   n|N ) echo -e "You chose not to reboot. \nPlease reboot your system later to apply changes, if there are any.\n";;
   * ) sudo reboot now;;
 esac
 choice=
+echo 
 
 exit 0 # get out o'here...
 

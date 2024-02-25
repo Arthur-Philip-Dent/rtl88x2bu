@@ -227,7 +227,7 @@ The shortest way to self-compile your driver-module:
 ```
 #! /bin/bash
 
-# rebuild_88x2bu.sh - rtl88x2bu-make-wrapper by Arthur-Philip-Dent
+# build_88x2bu.sh - rtl88x2bu-make-wrapper by Arthur-Philip-Dent
 # just do the steps to make your rtl88x2bu-driver (redo after each kernel-update) 
 # greetings fly out to @beckerstef and @marcone
 # thanks to @cilynx for the rtl88x2bu-tree to make it so easy just wrapped this script around
